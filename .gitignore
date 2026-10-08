@@ -9,3 +9,5 @@ __pycache__/
 deploy/*_manifest.json
 deploy/counsel_survey_*.sql
 admin-preview.jpg
+migration-private/
+*.manifest.json

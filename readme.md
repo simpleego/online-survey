@@ -1,54 +1,69 @@
-# 온라인 수강생 설문조사 웹사이트
-IT과정을 수강하는 학생들이 수강을 하면서 어떤 점이 필요한지 등을 파악해서  
-좀 더 개선된 학습환경을 제공하기 위해서 진행되는 설문입니다.
+# 온라인 수강생 설문조사 · 3차 버전
 
-## 3차 버전
+수강생 상담 설문과 관리자 조회·분석을 제공하는 웹 앱입니다.
 
-FastAPI + HTML/CSS/Vanilla JavaScript + MariaDB(SQLAlchemy/PyMySQL) 프로젝트입니다.
-설문 1~10번, DB 기반 선택 목록, 관리자 응답 검색·상세·요약, 전체/팀별 통계,
-상담 확인 표시 및 환경·시설 분석을 제공합니다.
+- Frontend: HTML, CSS, Vanilla JavaScript
+- Backend: FastAPI
+- Database: PostgreSQL 16 이상, SQLAlchemy + Psycopg
+- 배포: Cloud Run + Cloud SQL for PostgreSQL
 
-### Google Cloud Compute Engine 실행
+## 제공 기능
 
-이 저장소의 최상위가 앱 디렉터리입니다. MariaDB 11.4는 VM에 별도로 설치합니다.
-운영 DB는 이전에 준비한 비공개 SQL 백업을 빈 DB에 복원합니다.
-실제 응답 백업과 개발용 비밀번호는 이 저장소에 포함하지 않습니다.
-`database.sql`은 데이터 없이 새로 시작하는 경우의 스키마·기본 항목 준비용입니다.
-이미 운영 데이터를 복원했다면 초기화 스크립트를 다시 실행하지 마세요.
+설문 1~10번, DB 기반 선택 목록, 관리자 로그인, 이름·팀 검색, 페이지 이동,
+개인별 요약·상세 응답, 전체·팀별 통계, 상담 확인 표시, 환경·시설 만족도와 의견을 제공합니다.
+기존 설문 항목과 API 응답 구조는 유지합니다. 조회 API는 관리자 인증이 필요합니다.
+
+## Google Cloud 배포
+
+[CLOUD_RUN_POSTGRESQL.md](CLOUD_RUN_POSTGRESQL.md)의 단계에 따라 Cloud SQL DB 생성,
+스키마/데이터 복원, 앱 사용자 권한, Cloud Run 인스턴스 연결과 환경변수를 설정합니다.
+컨테이너 기본 포트는 8080이며 PORT 환경변수를 지원합니다.
+GitHub 연결은 코드 배포용이며 DB를 자동 생성하거나 기존 응답을 자동 이전하지 않습니다.
+
+INSTANCE_CONNECTION_NAME이 설정되면 Cloud SQL Unix 소켓으로 연결합니다.
+설정하지 않으면 DB_HOST와 DB_PORT로 TCP 연결합니다.
+DB 비밀번호와 관리자 비밀번호는 Secret Manager에 서로 다른 값으로 설정합니다.
+
+## 로컬 실행
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+python -m venv .venv
+# 가상환경을 활성화한 후:
+pip install -r requirements.txt
 cp .env.example .env
-# .env에 운영 DB 계정과 비밀번호, 별도 관리자 비밀번호를 설정합니다.
-chmod 600 .env
-.venv/bin/python run.py
+# .env에 PostgreSQL 접속 정보와 관리자 비밀번호를 설정합니다.
+python run.py
 ```
 
-Nginx와 HTTPS를 통해 접속하고 systemd로 재시작/자동 실행을 구성합니다.
-서버는 `0.0.0.0:8080`에서 실행합니다. `PORT` 환경변수가 있으면 해당 값을 사용합니다.
-Google Cloud의 포트 설정은 8080으로 지정합니다.
-기존 시작 명령을 별도로 설정했다면 `python run.py` 또는
-`uvicorn main:app --host 0.0.0.0 --port 8080`으로 변경합니다.
-설문 화면은 `/`, 관리자 화면은 `/admin`입니다.
-GET `/api/surveys`, `/api/surveys/{id}`, `/api/admin/*`는 관리자 인증이 필요합니다.
-POST `/api/surveys`는 기존처럼 설문 저장에 사용합니다.
-DB 계정은 앱용 SELECT/INSERT 권한만 부여하고 3306 포트는 공개하지 않습니다.
+설문: http://localhost:8080/ · 관리자: http://localhost:8080/admin
+새 DB 초기화는 해당 PostgreSQL DB에 접속해 database.sql을 실행합니다.
+기존 응답 이전은 별도 변환 SQL을 빈 DB에 복원합니다. 두 방법을 동시에 실행하지 않습니다.
 
-### Docker 실행 옵션
-
-Dockerfile은 HTTP 포트 환경변수 `PORT`를 지원하며 기본 포트는 8080입니다.
-환경변수로 DB 및 관리자 접속 설정을 전달합니다.
-컨테이너의 `127.0.0.1`은 VM의 MariaDB가 아니므로 VM에서 host networking을
-사용하거나 컨테이너에서 접근 가능한 비공개 DB 주소를 `DB_HOST`로 설정합니다.
-MariaDB와 웹 앱은 별도의 실행 프로세스입니다.
-
-### 분석 기준 및 검증
-
-반복 제출을 각각 응답 1건으로 집계합니다. 복수 선택 비율의 분모는 응답 수입니다.
-환경·시설 평균은 1~5점 응답만 포함합니다. 미이용/제공 없음/해당 없음과 미응답은 구분합니다.
-상담 확인은 추가 상담을 위한 참고 표시이며 학생 순위나 확정 평가가 아닙니다.
+## 테스트
 
 ```bash
 python -m unittest test_analysis -v
+# TEST_DATABASE_URL에 테스트용 PostgreSQL 연결 URL을 설정한 후:
+python -m unittest test_postgresql -v
 ```
+
+실제 PostgreSQL 테스트는 임시 스키마를 만들어 실행하고 롤백합니다.
+
+## MariaDB 데이터 이전
+
+원본 MariaDB 코드는 로컬 v3 폴더에 보존되어 있습니다.
+이 저장소의 배포 코드는 PostgreSQL용입니다.
+
+```bash
+pip install -r requirements-migration.txt
+python export_postgresql.py --source-env /private/source.env --output migration-private/final.sql
+```
+
+변환 파일은 실제 상담 응답을 포함하며 Git에서 제외합니다. 원본 DB는 수정하지 않습니다.
+생성 SQL에는 전체 구조, 실제 관리 목록/응답, 접수번호 시퀀스 보정이 포함됩니다.
+
+## 통계 해석
+
+반복 제출은 각각 응답 1건으로 집계합니다. 복수 선택 비율은 전체 응답 수 기준입니다.
+환경·시설 평균은 1~5점만 포함하고 미이용/제공 없음/해당 없음과 미응답을 구분합니다.
+상담 확인은 추가 확인을 위한 참고이며 학생 순위나 확정 평가가 아닙니다.

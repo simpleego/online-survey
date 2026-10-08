@@ -17,26 +17,30 @@ load_dotenv(BASE_DIR / ".env")
 
 from admin import build_admin_router, require_admin
 
+# Cloud Run은 연결된 Cloud SQL 인스턴스의 Unix 소켓을 사용합니다.
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = os.getenv("DB_PORT", "3306")
+DB_PORT = int(os.getenv("DB_PORT", "5432"))
 DB_USER = os.getenv("DB_USER", "survey_app")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_NAME = os.getenv("DB_NAME", "counsel_survey")
-
-DATABASE_URL = URL.create(
-    "mysql+pymysql",
-    username=DB_USER,
-    password=DB_PASSWORD,
-    host=DB_HOST,
-    port=int(DB_PORT),
-    database=DB_NAME,
-    query={"charset": "utf8mb4"},
-)
+DB_NAME = os.getenv("DB_NAME", "counsel_survey_prod")
+INSTANCE_CONNECTION_NAME = os.getenv("INSTANCE_CONNECTION_NAME", "")
+if INSTANCE_CONNECTION_NAME:
+    DATABASE_URL = URL.create(
+        "postgresql+psycopg", username=DB_USER, password=DB_PASSWORD,
+        database=DB_NAME,
+        query={"host": f"/cloudsql/{INSTANCE_CONNECTION_NAME}", "port": str(DB_PORT)},
+    )
+else:
+    DATABASE_URL = URL.create(
+        "postgresql+psycopg", username=DB_USER, password=DB_PASSWORD,
+        host=DB_HOST, port=DB_PORT, database=DB_NAME,
+    )
 
 engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    echo=False
+    DATABASE_URL, pool_pre_ping=True,
+    pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
+    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "0")),
+    connect_args={"connect_timeout": 10}, echo=False,
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
@@ -140,7 +144,7 @@ def health(db: Session = Depends(get_db)):
         db.execute(text("SELECT 1"))
         return {"status": "ok", "database": "connected"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB 연결 실패: {e}")
+        raise HTTPException(status_code=500, detail="DB 연결에 실패했습니다. 서버 설정을 확인해 주세요.")
 
 
 @app.get("/api/teams")
@@ -294,7 +298,7 @@ def create_survey(data: SurveyCreate, db: Session = Depends(get_db)):
             :desired_job, :career_fields, :course_career_fit, :career_comment,
             :class_speed, :need_more_explanation, :practice_amount, :instructor_support,
             :learn_env_answers, :facillities_answers
-        )
+        ) RETURNING id
     """)
 
     params = data.model_dump()
@@ -307,14 +311,15 @@ def create_survey(data: SurveyCreate, db: Session = Depends(get_db)):
 
     try:
         result = db.execute(sql, params)
+        survey_id = result.scalar_one()
         db.commit()
         return {
             "message": "상담 설문이 정상적으로 저장되었습니다.",
-            "id": result.lastrowid
+            "id": survey_id
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"설문 저장 실패: {e}")
+        raise HTTPException(status_code=500, detail="설문 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.")
 
 
 @app.get("/api/surveys", dependencies=[Depends(require_admin)])

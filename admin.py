@@ -33,7 +33,7 @@ def build_admin_router(get_db, decode, get_env, get_facilities):
         clauses = []
         params = {}
         if name:
-            clauses.append("LOCATE(:name, student_name) > 0")
+            clauses.append("strpos(student_name, :name) > 0")
             params["name"] = name
         if team:
             clauses.append("team_name = :team")
