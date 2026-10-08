@@ -22,10 +22,14 @@ python3 -m venv .venv
 cp .env.example .env
 # .env에 운영 DB 계정과 비밀번호, 별도 관리자 비밀번호를 설정합니다.
 chmod 600 .env
-.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+.venv/bin/python run.py
 ```
 
 Nginx와 HTTPS를 통해 접속하고 systemd로 재시작/자동 실행을 구성합니다.
+서버는 `0.0.0.0:8080`에서 실행합니다. `PORT` 환경변수가 있으면 해당 값을 사용합니다.
+Google Cloud의 포트 설정은 8080으로 지정합니다.
+기존 시작 명령을 별도로 설정했다면 `python run.py` 또는
+`uvicorn main:app --host 0.0.0.0 --port 8080`으로 변경합니다.
 설문 화면은 `/`, 관리자 화면은 `/admin`입니다.
 GET `/api/surveys`, `/api/surveys/{id}`, `/api/admin/*`는 관리자 인증이 필요합니다.
 POST `/api/surveys`는 기존처럼 설문 저장에 사용합니다.
